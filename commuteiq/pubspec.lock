@@ -544,6 +544,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.17.0"
+  metro_icons:
+    dependency: "direct main"
+    description:
+      name: metro_icons
+      sha256: "16c940ee95e4d3c2b27b5be21a1e248d8e38aca83a35995dc517a2a7c343243c"
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.0.2"
   path:
     dependency: transitive
     description:

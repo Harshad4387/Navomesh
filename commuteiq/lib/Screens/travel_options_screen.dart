@@ -1,8 +1,9 @@
 import 'package:commuteiq/Screens/economic_screen.dart';
+import 'package:commuteiq/Screens/comfort_screen.dart'; // ✅ Import Comfort Screen
+import 'package:commuteiq/Screens/private_travel_screen.dart';
 import 'package:flutter/material.dart';
 
 class TravelOptionsScreen extends StatelessWidget {
-  // Data passed from Home Screen
   final String sourceName;
   final String destName;
   final double sourceLat;
@@ -30,7 +31,7 @@ class TravelOptionsScreen extends StatelessWidget {
       ),
       body: Column(
         children: [
-          // TOP HALF: Mode Selection (Economic, Comfort, Private)
+          // TOP HALF: Mode Selection
           Expanded(
             flex: 1,
             child: Container(
@@ -47,13 +48,13 @@ class TravelOptionsScreen extends StatelessWidget {
                   const SizedBox(height: 25),
                   _modeButton(context, "ECONOMIC", Icons.directions_bus, Colors.green),
                   _modeButton(context, "COMFORT", Icons.train, Colors.orange),
-                  _modeButton(context, " PRIVATE", Icons.directions_car, Colors.blueAccent),
+                  _modeButton(context, "PRIVATE", Icons.directions_car, Colors.blueAccent),
                 ],
               ),
             ),
           ),
 
-          // BOTTOM HALF: Hardcoded Recommendations
+          // BOTTOM HALF: Recommendations
           Expanded(
             flex: 1,
             child: Container(
@@ -66,24 +67,9 @@ class TravelOptionsScreen extends StatelessWidget {
                     style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, letterSpacing: 0.5),
                   ),
                   const SizedBox(height: 10),
-                  _recommendationTile(
-                    "Fastest Route", 
-                    "Metro + Walking (18 mins)", 
-                    Icons.bolt, 
-                    Colors.amber
-                  ),
-                  _recommendationTile(
-                    "Eco-Friendly", 
-                    "PMPML Bus Line 12 (₹15)", 
-                    Icons.eco, 
-                    Colors.green
-                  ),
-                  _recommendationTile(
-                    "Group Choice", 
-                    "Shared Shuttle (Nash Optimized)", 
-                    Icons.groups, 
-                    Colors.indigo
-                  ),
+                  _recommendationTile("Fastest Route", "Metro + Walking (18 mins)", Icons.bolt, Colors.amber),
+                  _recommendationTile("Eco-Friendly", "PMPML Bus Line 12 (₹15)", Icons.eco, Colors.green),
+                  _recommendationTile("Group Choice", "Shared Shuttle (Nash Optimized)", Icons.groups, Colors.indigo),
                 ],
               ),
             ),
@@ -93,6 +79,75 @@ class TravelOptionsScreen extends StatelessWidget {
     );
   }
 
+  Widget _modeButton(BuildContext context, String label, IconData icon, Color color) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: SizedBox(
+        width: double.infinity,
+        height: 55,
+        child: ElevatedButton.icon(
+          onPressed: () {
+            // ✅ Managed Navigation Logic
+            if (label == "ECONOMIC") {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => EconomicTravelScreen(
+                    sourceName: sourceName,
+                    destName: destName,
+                    sourceLat: sourceLat,
+                    sourceLng: sourceLng,
+                    destLat: destLat,
+                    destLng: destLng,
+                  ),
+                ),
+              );
+            } else if (label == "COMFORT") {
+              // ✅ Navigate to Comfort Screen
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => ComfortTravelScreen(
+                    sourceName: sourceName,
+                    destName: destName,
+                    sourceLat: sourceLat,
+                    sourceLng: sourceLng,
+                    destLat: destLat,
+                    destLng: destLng,
+                  ),
+                ),
+              );
+            } else {
+                Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => PrivateTravelScreen(
+                    sourceName: sourceName,
+                    destName: destName,
+                    sourceLat: sourceLat,
+                    sourceLng: sourceLng,
+                    destLat: destLat,
+                    destLng: destLng,
+                  ),
+                ),
+              );
+              _handleSelection(context, label);
+            }
+          },
+          icon: Icon(icon, color: Colors.white),
+          label: Text(label, style: const TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1.1)),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: color,
+            foregroundColor: Colors.white,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            elevation: 2,
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Helper widgets remain the same...
   Widget _buildLocationHeader() {
     return Container(
       padding: const EdgeInsets.all(12),
@@ -113,48 +168,6 @@ class TravelOptionsScreen extends StatelessWidget {
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  // Inside TravelOptionsScreen class...
-
-  Widget _modeButton(BuildContext context, String label, IconData icon, Color color) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: SizedBox(
-        width: double.infinity,
-        height: 55,
-        child: ElevatedButton.icon(
-          onPressed: () {
-            if (label == "ECONOMIC") {
-              // Passing all initial data to the Economic Screen
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => EconomicTravelScreen(
-                    sourceName: sourceName,
-                    destName: destName,
-                    sourceLat: sourceLat,
-                    sourceLng: sourceLng,
-                    destLat: destLat,
-                    destLng: destLng,
-                  ),
-                ),
-              );
-            } else {
-              _handleSelection(context, label);
-            }
-          },
-          icon: Icon(icon, color: Colors.white),
-          label: Text(label, style: const TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1.1)),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: color,
-            foregroundColor: Colors.white,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            elevation: 2,
-          ),
-        ),
       ),
     );
   }
