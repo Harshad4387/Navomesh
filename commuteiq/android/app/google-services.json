@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "721944977602",
+    "project_id": "navomesh-85b83",
+    "storage_bucket": "navomesh-85b83.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:721944977602:android:9066439c363d30fa1f5b5b",
+        "android_client_info": {
+          "package_name": "com.example.commuteiq"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD4f1CiDKBAq8oTPPyto1UIZKH3sVl8VvQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
