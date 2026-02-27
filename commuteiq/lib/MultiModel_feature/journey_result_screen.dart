@@ -5,15 +5,15 @@ import 'package:qr_flutter/qr_flutter.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
 
-/// Model for the "Perfect Plan" segments
 class JourneySegment {
   final String mode;
   final String detail;
   final double cost;
   final int minutes;
-  final String? arrivalTime; // Simulating Firestore static data
-  final bool isLiveSynced;   // Simulating the 'Shuttle Hold' logic
+  final String? arrivalTime; 
+  final bool isLiveSynced;   
   final Color themeColor;
+  final LatLng? location; // Store lat/lng for specific markers
 
   JourneySegment({
     required this.mode,
@@ -23,17 +23,20 @@ class JourneySegment {
     this.arrivalTime,
     this.isLiveSynced = false,
     this.themeColor = Colors.blueAccent,
+    this.location,
   });
 }
 
 class JourneyResultScreen extends StatefulWidget {
   final LatLng destination;
   final String destinationName;
+  final List<Map<String, dynamic>> metroSchedules; 
 
   const JourneyResultScreen({
     super.key,
     required this.destination,
     required this.destinationName,
+    required this.metroSchedules,
   });
 
   @override
@@ -41,7 +44,6 @@ class JourneyResultScreen extends StatefulWidget {
 }
 
 class _JourneyResultScreenState extends State<JourneyResultScreen> {
-  // Replace with your actual key
   static const String _apiKey = "AIzaSyA3vnLO1Ajwovs_I2IjAuDqEGMPeMpTBxc"; 
 
   final Set<Marker> _markers = {};
@@ -56,7 +58,6 @@ class _JourneyResultScreenState extends State<JourneyResultScreen> {
     _buildPerfectPlan();
   }
 
-  /// ── The Perfect Plan Orchestrator ──────────────────────────────────────
   Future<void> _buildPerfectPlan() async {
     try {
       Position pos = await Geolocator.getCurrentPosition();
@@ -67,11 +68,6 @@ class _JourneyResultScreenState extends State<JourneyResultScreen> {
       
       final response = await http.get(url);
       final googleData = json.decode(response.body);
-
-      // MOCK FIRESTORE DATA (Priya's Scenario)
-      // In production, fetch these from Firestore based on station names
-      String mockMetroArrival = "10:05 AM"; 
-      bool mockShuttleHold = true; 
 
       if (googleData["status"] == "OK") {
         final route = googleData["routes"][0];
@@ -85,17 +81,47 @@ class _JourneyResultScreenState extends State<JourneyResultScreen> {
 
           if (mode == "TRANSIT") {
             var transit = step["transit_details"];
-            bool isMetro = transit["line"]["vehicle"]["type"] != "BUS";
+            // Identify if it's Metro (Subway/Heavy Rail) vs Bus
+            bool isMetro = transit["line"]["vehicle"]["type"] == "SUBWAY" || 
+                           transit["line"]["vehicle"]["type"] == "METRO_RAIL" ||
+                           transit["line"]["name"].toString().contains("Metro");
+
+            String? liveArrivalTime;
+            LatLng? stationLoc;
+
+            // Logic to match Firestore schedules and handle station coordinates
+            if (isMetro && widget.metroSchedules.isNotEmpty) {
+              var match = widget.metroSchedules.firstWhere(
+                (s) => s['station'].toString().toLowerCase().contains(transit["departure_stop"]["name"].toString().toLowerCase()),
+                orElse: () => widget.metroSchedules.first,
+              );
+              liveArrivalTime = match['arrival'];
+              
+              // If your Firestore contains lat/lng, use them for the marker
+              if (match.containsKey('lat') && match.containsKey('lng')) {
+                stationLoc = LatLng(match['lat'], match['lng']);
+              }
+            }
 
             perfectSegments.add(JourneySegment(
-              mode: isMetro ? "Metro" : "Shuttle",
-              detail: isMetro ? "Yellow Line to ${transit["arrival_stop"]["name"]}" : "Shuttle S4 to Cyber City",
-              cost: isMetro ? 32.0 : 15.0,
+              mode: isMetro ? "Metro" : "Bus",
+              detail: "${transit["line"]["short_name"] ?? "Line"} to ${transit["arrival_stop"]["name"]}",
+              cost: isMetro ? 20.0 : 15.0,
               minutes: duration,
-              arrivalTime: isMetro ? mockMetroArrival : "Synced",
-              isLiveSynced: !isMetro && mockShuttleHold,
-              themeColor: isMetro ? Colors.blue : Colors.orange,
+              arrivalTime: liveArrivalTime ?? transit["departure_time"]["text"],
+              isLiveSynced: !isMetro, // Simulate live sync for buses/shuttles
+              themeColor: isMetro ? Colors.indigo : Colors.orange,
+              location: stationLoc,
             ));
+
+            if (stationLoc != null) {
+              _markers.add(Marker(
+                markerId: MarkerId(transit["departure_stop"]["name"]),
+                position: stationLoc,
+                infoWindow: InfoWindow(title: "Metro: ${transit["departure_stop"]["name"]}"),
+                icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueBlue),
+              ));
+            }
           } else {
             perfectSegments.add(JourneySegment(
               mode: "Walk",
@@ -109,7 +135,7 @@ class _JourneyResultScreenState extends State<JourneyResultScreen> {
 
         setState(() {
           _segments = perfectSegments;
-          _journeyStatus = "₹293 cheaper than Uber • 21 mins saved";
+          _journeyStatus = "Fastest Route: Combined Metro & Bus";
           _isLoading = false;
           _markers.add(Marker(markerId: const MarkerId("origin"), position: origin, icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen)));
           _markers.add(Marker(markerId: const MarkerId("dest"), position: widget.destination));
@@ -127,7 +153,7 @@ class _JourneyResultScreenState extends State<JourneyResultScreen> {
     }
   }
 
-  /// ── HELPER: Decode Polyline ───────────────────────────────────────────
+  // Helper to decode Google Polyline points
   List<LatLng> _decodePolyline(String encoded) {
     List<LatLng> points = [];
     int index = 0, len = encoded.length;
@@ -152,33 +178,32 @@ class _JourneyResultScreenState extends State<JourneyResultScreen> {
     return points;
   }
 
-  /// ── HELPER: Icon Selector ─────────────────────────────────────────────
   IconData _getIcon(String mode) {
     switch (mode) {
-      case "Metro": return Icons.train;
-      case "Shuttle": return Icons.bus_alert;
+      case "Metro": return Icons.subway;
+      case "Bus": return Icons.directions_bus;
       case "Walk": return Icons.directions_walk;
       default: return Icons.directions_transit;
     }
   }
 
-  /// ── HELPER: Show Single Token QR ──────────────────────────────────────
+  // QR Token Generation Logic
   void _showQR() {
     double totalCost = _segments.fold(0, (sum, s) => sum + s.cost);
-    String data = "PRIYA_FLOW_CITY_TOKEN|₹$totalCost|${widget.destinationName}";
+    String data = "CORUSCANT_TOKEN|₹$totalCost|${widget.destinationName}";
     
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text("Single-Journey Token", textAlign: TextAlign.center),
+        title: const Text("Multimodal Token", textAlign: TextAlign.center),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text("Valid for Metro & Shuttle S4"),
+            const Text("Unified QR for Metro, Bus & Shuttle"),
             const SizedBox(height: 20),
             QrImageView(data: data, size: 200),
             const SizedBox(height: 10),
-            const Text("Scan at any FlowCity terminal", style: TextStyle(fontSize: 12, color: Colors.grey)),
+            const Text("Scan at any gated terminal", style: TextStyle(fontSize: 12, color: Colors.grey)),
           ],
         ),
       ),
@@ -188,13 +213,13 @@ class _JourneyResultScreenState extends State<JourneyResultScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Perfect Plan'), elevation: 0),
+      appBar: AppBar(title: const Text('Journey Plan'), elevation: 0),
       body: _isLoading 
         ? const Center(child: CircularProgressIndicator())
         : Stack(
             children: [
               GoogleMap(
-                initialCameraPosition: CameraPosition(target: widget.destination, zoom: 13),
+                initialCameraPosition: CameraPosition(target: widget.destination, zoom: 14),
                 markers: _markers,
                 polylines: _polylines,
               ),
@@ -222,24 +247,23 @@ class _JourneyResultScreenState extends State<JourneyResultScreen> {
           controller: controller,
           padding: const EdgeInsets.all(20),
           children: [
-            // Savings Badge (The Priya Scenario Highlight)
             Container(
               padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(color: Colors.green[50], borderRadius: BorderRadius.circular(12)),
+              decoration: BoxDecoration(color: Colors.blue[50], borderRadius: BorderRadius.circular(12)),
               child: Row(
                 children: [
-                  const Icon(Icons.auto_awesome, color: Colors.green, size: 20),
+                  const Icon(Icons.info_outline, color: Colors.blue, size: 20),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(_journeyStatus, 
-                      style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold, fontSize: 13)),
+                      style: const TextStyle(color: Colors.blue, fontWeight: FontWeight.bold, fontSize: 13)),
                   ),
                 ],
               ),
             ),
             const SizedBox(height: 15),
-            Text("Journey Details", style: Theme.of(context).textTheme.titleLarge),
-            Text("₹${totalCost.toInt()} • $totalTime mins total"),
+            Text("Estimated Trip", style: Theme.of(context).textTheme.titleLarge),
+            Text("₹${totalCost.toInt()} Total Fare • $totalTime mins"),
             const Divider(height: 30),
             ..._segments.map((s) => _buildLegItem(s)),
             const SizedBox(height: 20),
@@ -251,7 +275,7 @@ class _JourneyResultScreenState extends State<JourneyResultScreen> {
                 minimumSize: const Size(double.infinity, 55),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15))
               ),
-              child: const Text("BOOK ALL & GENERATE QR", style: TextStyle(fontWeight: FontWeight.bold)),
+              child: const Text("GENERATE UNIFIED TOKEN", style: TextStyle(fontWeight: FontWeight.bold)),
             )
           ],
         ),
@@ -282,14 +306,14 @@ class _JourneyResultScreenState extends State<JourneyResultScreen> {
                   Container(
                     margin: const EdgeInsets.only(top: 4),
                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(color: Colors.orange[100], borderRadius: BorderRadius.circular(4)),
-                    child: const Text("SHUTTLE HOLDING", style: TextStyle(color: Colors.orange, fontSize: 10, fontWeight: FontWeight.bold)),
+                    decoration: BoxDecoration(color: Colors.green[100], borderRadius: BorderRadius.circular(4)),
+                    child: const Text("SYNCED", style: TextStyle(color: Colors.green, fontSize: 10, fontWeight: FontWeight.bold)),
                   ),
               ],
             ),
           ),
           if (s.arrivalTime != null)
-            Text(s.arrivalTime!, style: const TextStyle(color: Colors.blue, fontSize: 12, fontWeight: FontWeight.w500)),
+            Text(s.arrivalTime!, style: const TextStyle(color: Colors.indigo, fontSize: 12, fontWeight: FontWeight.w500)),
         ],
       ),
     );

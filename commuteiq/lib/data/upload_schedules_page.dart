@@ -1,4 +1,19 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/material.dart';
 
+class UploadSchedulesPage extends StatefulWidget {
+  const UploadSchedulesPage({super.key});
+
+  @override
+  State<UploadSchedulesPage> createState() => _UploadSchedulesPageState();
+}
+
+class _UploadSchedulesPageState extends State<UploadSchedulesPage> {
+  bool isUploading = false;
+  String status = "Ready to upload";
+
+  /// 🚆 Train Schedule Data
+  final List<Map<String, dynamic>> trainSchedules = [
   {
     "train_id": "P-100",
     "line": "Purple",
@@ -190,3 +205,100 @@
 
 
 
+];
+
+  /// 🚀 Upload Function
+  Future<void> uploadSchedules() async {
+  setState(() {
+    isUploading = true;
+    status = "Starting upload...";
+  });
+
+  final firestore = FirebaseFirestore.instance;
+  final batch = firestore.batch();
+
+  try {
+    final collectionRef = firestore.collection('train_schedules');
+
+    for (var train in trainSchedules) {
+      final trainRef = collectionRef.doc(train['train_id']);
+
+      /// ✅ Store full schedule array in main document
+      batch.set(trainRef, {
+        'train_id': train['train_id'],
+        'line': train['line'],
+        'direction': train['direction'],
+        'scenario': train['scenario'],
+        'frequency_minutes': train['frequency_minutes'],
+        'total_stops': train['schedule'].length,
+        'schedule': train['schedule'], // 🔥 FULL schedule stored
+        'created_at': FieldValue.serverTimestamp(),
+      });
+
+      /// ✅ Also store stops in subcollection (optional but powerful)
+      for (var stop in train['schedule']) {
+        String stationId =
+            stop['station_name'].toString().replaceAll('/', '-');
+
+        final stopRef = trainRef.collection('stops').doc(stationId);
+
+        batch.set(stopRef, {
+          'station_name': stop['station_name'],
+          'arrival_time': stop['arrival_time'],
+          'departure_time': stop['departure_time'],
+        });
+      }
+    }
+
+    await batch.commit();
+
+    setState(() {
+      status = "✅ Uploaded ${trainSchedules.length} trains with schedules!";
+    });
+  } catch (e) {
+    setState(() {
+      status = "❌ Error: $e";
+    });
+  } finally {
+    setState(() => isUploading = false);
+  }
+}
+
+  /// 🎨 UI
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text("Upload Train Schedules")),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                isUploading ? Icons.cloud_sync : Icons.train,
+                size: 80,
+                color: Colors.blue,
+              ),
+              const SizedBox(height: 20),
+              Text(
+                status,
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 40),
+              ElevatedButton.icon(
+                onPressed: isUploading ? null : uploadSchedules,
+                icon: const Icon(Icons.upload),
+                label: const Text("Upload Data to Firestore"),
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 15),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
