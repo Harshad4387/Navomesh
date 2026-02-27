@@ -13,7 +13,7 @@ class AmbulanceEmergencyScreen extends StatefulWidget {
 }
 
 class _AmbulanceEmergencyScreenState extends State<AmbulanceEmergencyScreen> {
-  final String _apiKey = "YOUR_GOOGLE_MAPS_API_KEY";
+  final String _apiKey = "AIzaSyA3vnLO1Ajwovs_I2IjAuDqEGMPeMpTBxc";
   final _sessionToken = const Uuid().v4();
   final DatabaseReference _dbRef = FirebaseDatabase.instance.ref();
 

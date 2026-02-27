@@ -1,10 +1,12 @@
 import 'package:commuteiq/App_Drawer_Screen/multimodal_simulation_screen.dart';
 import 'package:commuteiq/App_Drawer_Screen/simple_map.dart';
+import 'package:commuteiq/Congestion_feature/congestion.dart';
 
 import 'package:commuteiq/Crowd_report/crowd_screen.dart';
 
 import 'package:commuteiq/Crowd_scanner/bluetooth_test.dart';
 import 'package:commuteiq/MultiModel_feature/search_route_screen.dart';
+import 'package:commuteiq/Re_routing/simulation.dart';
 import 'package:commuteiq/amubulance_feature/add_emergency.dart';
 import 'package:commuteiq/auth/register_screen.dart';
 import 'package:commuteiq/cascade_feature/disruption_cascade_screen.dart';
@@ -145,12 +147,12 @@ class AppDrawer extends StatelessWidget {
           _drawerItem(
             context,
             Icons.groups_rounded,
-            "Disrption Cascade",
+            "Niraj chi gand ",
             () {
               Navigator.pop(context);
               Navigator.push(
                 context,
-                MaterialPageRoute(builder: (_) => const DisruptionCascadeScreen()),
+                MaterialPageRoute(builder: (_) => const KothrudPreShockSimulator()),
               );
             },
           ),
@@ -178,6 +180,19 @@ class AppDrawer extends StatelessWidget {
                 context,
                 MaterialPageRoute(
                     builder: (_) => const CrowdMapScreen ()),
+              );
+            },
+          ),
+            _drawerItem(
+            context,
+            Icons.pedal_bike_rounded,
+            "re - Routing",
+            () {
+              Navigator.pop(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (_) => const RouteSimulationPage ()),
               );
             },
           ),
