@@ -40,6 +40,7 @@ dependencies:
   permission_handler: ^11.3.0
   flutter_polyline_points: ^2.0.0
   metro_icons: ^0.0.2
+  url_launcher: ^6.1.10
 
 
   # The following adds the Cupertino Icons font to your application.

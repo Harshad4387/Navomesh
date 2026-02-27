@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'dart:ui' as ui; // ✅ Added for marker generation
+import 'package:commuteiq/auth/register_screen.dart';
 import 'package:commuteiq/cascade_feature/disruption_cascade_screen.dart';
+import 'package:commuteiq/metrosync/metrosync.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_typeahead/flutter_typeahead.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
@@ -151,12 +153,14 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  @override
+ @override
   Widget build(BuildContext context) {
+    // ✅ Updated pages list to include Metro Sync (Index 2)
     final List<Widget> _pages = [
-      _buildMapSearchBody(),
-      const DisruptionCascadeScreen(),
-      const Center(child: Text("Profile & Settings")),
+      _buildMapSearchBody(),           // Index 0
+      const DisruptionCascadeScreen(), // Index 1
+      const MetroBookingScreen(),      // Index 2 (NEW)
+      const RegisterPage(),            // Index 3
     ];
 
     return Scaffold(
@@ -173,10 +177,12 @@ class _HomePageState extends State<HomePage> {
         },
         selectedItemColor: Colors.orange[800],
         unselectedItemColor: Colors.grey,
-        type: BottomNavigationBarType.fixed,
+        type: BottomNavigationBarType.fixed, // Necessary for 4+ items
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.home_outlined), activeIcon: Icon(Icons.home), label: 'Home'),
           BottomNavigationBarItem(icon: Icon(Icons.analytics_outlined), activeIcon: Icon(Icons.analytics), label: 'Cascade'),
+          // ✅ New Tab Added
+          BottomNavigationBarItem(icon: Icon(Icons.sync_alt), activeIcon: Icon(Icons.sync), label: 'Metro Sync'),
           BottomNavigationBarItem(icon: Icon(Icons.person_outline), activeIcon: Icon(Icons.person), label: 'Profile'),
         ],
       ),
