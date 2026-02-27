@@ -5,6 +5,7 @@ import 'package:commuteiq/Crowd_report/crowd_screen.dart';
 
 import 'package:commuteiq/Crowd_scanner/bluetooth_test.dart';
 import 'package:commuteiq/MultiModel_feature/search_route_screen.dart';
+import 'package:commuteiq/amubulance_feature/add_emergency.dart';
 import 'package:commuteiq/auth/register_screen.dart';
 import 'package:commuteiq/cascade_feature/disruption_cascade_screen.dart';
 import 'package:commuteiq/data/upload_schedules_page.dart';
@@ -141,17 +142,29 @@ class AppDrawer extends StatelessWidget {
               );
             },
           ),
+          _drawerItem(
+            context,
+            Icons.groups_rounded,
+            "Disrption Cascade",
+            () {
+              Navigator.pop(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const DisruptionCascadeScreen()),
+              );
+            },
+          ),
 
           _drawerItem(
             context,
             Icons.pedal_bike_rounded,
-            "Crowd Scanner",
+            "Add emergency",
             () {
               Navigator.pop(context);
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                    builder: (_) => const CrowdScannerScreen()),
+                    builder: (_) => const AmbulanceEmergencyScreen()),
               );
             },
           ),
