@@ -1,134 +1,395 @@
 import 'dart:async';
+
 import 'package:flutter/material.dart';
+
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
+
 import 'package:permission_handler/permission_handler.dart';
 
+
+
 class CrowdScannerScreen extends StatefulWidget {
+
   const CrowdScannerScreen({super.key});
 
+
+
   @override
+
   State<CrowdScannerScreen> createState() => _CrowdScannerScreenState();
+
 }
+
+
 
 class _CrowdScannerScreenState extends State<CrowdScannerScreen> {
-  // A Set automatically rejects duplicate Bluetooth IDs
-  Set<String> uniqueDevices = {};
+
+  // Map stores MAC address as Key and Device Name as Value
+
+  // This ensures unique MACs while keeping names accessible
+
+  Map<String, String> detectedDevices = {};
+
   bool isScanning = false;
-  
-  // Set your crowd threshold here. If we see more than 15 devices, it's a crowd.
-  final int crowdThreshold = 15; 
+
+ 
+
+  // Threshold for crowd detection
+
+  final int crowdThreshold = 15;
+
   late StreamSubscription<List<ScanResult>> _scanResultsSubscription;
 
+
+
   @override
+
   void initState() {
+
     super.initState();
+
     _requestPermissions();
+
   }
 
-  // 1. Ask the user for permission to use Bluetooth
+
+
   Future<void> _requestPermissions() async {
+
     await [
+
       Permission.bluetoothScan,
+
       Permission.bluetoothConnect,
-      Permission.locationFine, // Required by Android to scan for BLE
+
+      Permission.location,
+
     ].request();
+
   }
 
-  // 2. Start the crowd detection scan
+
+
   void startCrowdScan() async {
-    // Clear previous data for a fresh count
+
     setState(() {
-      uniqueDevices.clear();
+
+      detectedDevices.clear();
+
       isScanning = true;
+
     });
 
-    // Listen to the scanner stream
+
+
     _scanResultsSubscription = FlutterBluePlus.scanResults.listen((results) {
+
       for (ScanResult r in results) {
-        // remoteId is the unique MAC address (Android) or UUID (iOS)
-        setState(() {
-          uniqueDevices.add(r.device.remoteId.str);
-        });
+
+        // Tighter RSSI Filtering:
+
+        // -50 to -55 dBm is roughly 1 meter.
+
+        if (r.rssi > -55) {
+
+          String mac = r.device.remoteId.str;
+
+          // Use platformName if available, otherwise 'Unknown'
+
+          String name = r.device.platformName.isNotEmpty
+
+              ? r.device.platformName
+
+              : "Unknown Device";
+
+
+
+          setState(() {
+
+            detectedDevices[mac] = name;
+
+          });
+
+        }
+
       }
+
     });
 
-    // Start scanning for 15 seconds. It will stop automatically.
+
+
     await FlutterBluePlus.startScan(timeout: const Duration(seconds: 15));
-    
-    // Once the scan finishes, update the UI state
+
+   
+
     setState(() {
+
       isScanning = false;
+
     });
+
   }
 
-  // 3. Manually stop the scan if needed
+
+
   void stopCrowdScan() async {
+
     await FlutterBluePlus.stopScan();
+
     setState(() {
+
       isScanning = false;
+
     });
+
   }
 
+
+
   @override
+
   void dispose() {
+
+    // Check if initialized before canceling to avoid errors
+
     _scanResultsSubscription.cancel();
+
     super.dispose();
+
   }
 
+
+
   @override
+
   Widget build(BuildContext context) {
-    bool isCrowdGathered = uniqueDevices.length >= crowdThreshold;
+
+    bool isCrowdGathered = detectedDevices.length >= crowdThreshold;
+
+
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Crowd Detector'),
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-      ),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: <Widget>[
-            // Display Crowd Status
-            Icon(
-              isCrowdGathered ? Icons.groups : Icons.person,
-              size: 100,
-              color: isCrowdGathered ? Colors.red : Colors.green,
-            ),
-            const SizedBox(height: 20),
-            Text(
-              isCrowdGathered ? "CROWD DETECTED" : "CLEAR",
-              style: TextStyle(
-                fontSize: 28, 
-                fontWeight: FontWeight.bold,
-                color: isCrowdGathered ? Colors.red : Colors.green,
-              ),
-            ),
-            const SizedBox(height: 20),
-            
-            // Display Device Count
-            Text(
-              'Unique Devices Found:',
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-            Text(
-              '${uniqueDevices.length}',
-              style: Theme.of(context).textTheme.displayLarge,
-            ),
-            const SizedBox(height: 40),
-            
-            // Start/Stop Button
-            ElevatedButton.icon(
-              onPressed: isScanning ? stopCrowdScan : startCrowdScan,
-              icon: Icon(isScanning ? Icons.stop : Icons.search),
-              label: Text(isScanning ? 'Scanning...' : 'Detect Crowd (15s)'),
-              style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 15),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
 
+      backgroundColor: const Color(0xFFF8FAFC),
+
+      appBar: AppBar(
+
+        title: const Text('Crowd Detector'),
+
+        backgroundColor: Colors.indigo[900],
+
+        foregroundColor: Colors.white,
+
+      ),
+
+      body: Column(
+
+        children: [
+
+          const SizedBox(height: 30),
+
+          // --- Status Header ---
+
+          _buildStatusHeader(isCrowdGathered),
+
+         
+
+          const Divider(height: 40, thickness: 1),
+
+         
+
+          // --- Real-time List of Names and MACs ---
+
+          Padding(
+
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+
+            child: Row(
+
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+
+              children: [
+
+                const Text("Devices within 1m:", style: TextStyle(fontWeight: FontWeight.bold)),
+
+                Text("${detectedDevices.length}", style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.indigo)),
+
+              ],
+
+            ),
+
+          ),
+
+         
+
+          Expanded(
+
+            child: detectedDevices.isEmpty
+
+              ? _buildEmptyState()
+
+              : ListView.builder(
+
+                  padding: const EdgeInsets.all(15),
+
+                  itemCount: detectedDevices.length,
+
+                  itemBuilder: (context, index) {
+
+                    String mac = detectedDevices.keys.elementAt(index);
+
+                    String name = detectedDevices[mac]!;
+
+                    return Card(
+
+                      elevation: 0,
+
+                      shape: RoundedRectangleBorder(
+
+                        borderRadius: BorderRadius.circular(10),
+
+                        side: BorderSide(color: Colors.grey[200]!)
+
+                      ),
+
+                      child: ListTile(
+
+                        leading: const CircleAvatar(
+
+                          backgroundColor: Color(0xFFE8EAF6),
+
+                          child: Icon(Icons.bluetooth, color: Colors.indigo, size: 20),
+
+                        ),
+
+                        title: Text(name, style: const TextStyle(fontWeight: FontWeight.w600)),
+
+                        subtitle: Text(mac, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+
+                        trailing: const Text("< 1m", style: TextStyle(color: Colors.green, fontSize: 10, fontWeight: FontWeight.bold)),
+
+                      ),
+
+                    );
+
+                  },
+
+                ),
+
+          ),
+
+
+
+          // --- Controls ---
+
+          Padding(
+
+            padding: const EdgeInsets.all(20.0),
+
+            child: SizedBox(
+
+              width: double.infinity,
+
+              height: 55,
+
+              child: ElevatedButton.icon(
+
+                onPressed: isScanning ? stopCrowdScan : startCrowdScan,
+
+                icon: Icon(isScanning ? Icons.stop : Icons.search),
+
+                label: Text(isScanning ? 'Scanning Environment...' : 'Scan Near Me (1m)'),
+
+                style: ElevatedButton.styleFrom(
+
+                  backgroundColor: isScanning ? Colors.red : Colors.indigo[900],
+
+                  foregroundColor: Colors.white,
+
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+
+                ),
+
+              ),
+
+            ),
+
+          ),
+
+        ],
+
+      ),
+
+    );
+
+  }
+
+
+
+  Widget _buildStatusHeader(bool isCrowd) {
+
+    return Column(
+
+      children: [
+
+        Icon(
+
+          isCrowd ? Icons.groups_rounded : Icons.person_rounded,
+
+          size: 80,
+
+          color: isCrowd ? Colors.red : Colors.green,
+
+        ),
+
+        const SizedBox(height: 10),
+
+        Text(
+
+          isCrowd ? "CROWD DETECTED" : "CLEAR RADIUS",
+
+          style: TextStyle(
+
+            fontSize: 22,
+
+            fontWeight: FontWeight.bold,
+
+            color: isCrowd ? Colors.red : Colors.green,
+
+          ),
+
+        ),
+
+      ],
+
+    );
+
+  }
+
+
+
+  Widget _buildEmptyState() {
+
+    return Center(
+
+      child: Column(
+
+        mainAxisAlignment: MainAxisAlignment.center,
+
+        children: [
+
+          Icon(Icons.radar, size: 50, color: Colors.grey[300]),
+
+          const SizedBox(height: 10),
+
+          Text("No devices found in 1m range", style: TextStyle(color: Colors.grey[400])),
+
+        ],
+
+      ),
+
+    );
+
+  }
+
+}
