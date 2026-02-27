@@ -1,8 +1,5 @@
 import 'dart:async';
-import 'dart:math';
 import 'package:flutter/material.dart';
-import 'package:geolocator/geolocator.dart';
-// Note: We only need Firebase Database, not Auth
 import 'package:firebase_database/firebase_database.dart';
 import 'package:shared_preferences/shared_preferences.dart'; 
 import 'ride_grouping_screen.dart'; 
@@ -26,13 +23,10 @@ class NearbyUsersPage extends StatefulWidget {
 }
 
 class _NearbyUsersPageState extends State<NearbyUsersPage> {
-  StreamSubscription<Position>? positionStream;
   final DatabaseReference dbRef = FirebaseDatabase.instance.ref();
 
-  String? myPhone; // This will be our primary key (Document ID)
-  double? myLat;
-  double? myLng;
-  List<Map<String, dynamic>> nearbyUsers = [];
+  String? myPhone; 
+  List<Map<String, dynamic>> activeUsers = [];
   bool hasNavigatedToGroup = false;
 
   @override
@@ -42,117 +36,54 @@ class _NearbyUsersPageState extends State<NearbyUsersPage> {
   }
 
   Future<void> initUser() async {
-    // 1. Get Phone from SharedPreferences (Matching your RegisterPage key)
     final SharedPreferences prefs = await SharedPreferences.getInstance();
     myPhone = prefs.getString('phone'); 
 
-    if (myPhone == null || myPhone!.isEmpty) {
-      // If no phone found, the user isn't registered. 
-      // You might want to redirect them to RegisterPage here.
-      debugPrint("User not registered. No phone found in storage.");
-      return;
-    }
+    if (myPhone == null || myPhone!.isEmpty) return;
 
-    // 2. Add user to the live 'grouping' node immediately
-    await checkAndAddUserToGrouping();
-
-    // 3. Start tracking and listening
-    startLocationTracking();
-    listenForNearbyUsers();
-    listenForIncomingRequests();
-  }
-
-  // --- DATABASE INITIALIZATION ---
-
-  Future<void> checkAndAddUserToGrouping() async {
-    if (myPhone == null) return;
-
-    LocationPermission permission = await Geolocator.checkPermission();
-    if (permission == LocationPermission.denied) {
-      permission = await Geolocator.requestPermission();
-      if (permission == LocationPermission.denied) return;
-    }
-
-    Position position = await Geolocator.getCurrentPosition(
-      desiredAccuracy: LocationAccuracy.high
-    );
-    myLat = position.latitude;
-    myLng = position.longitude;
-
-    // We store under 'grouping/phone_number'
-    // This makes the user "live" as soon as they land on this page
+    // 1. Mark yourself as Active immediately
     await dbRef.child("grouping/$myPhone").update({
       "phone": myPhone,
-      "lat": myLat,
-      "long": myLng,
       "destinationId": widget.destinationId,
       "isActive": true,
       "lastSeen": ServerValue.timestamp,
     });
 
-    // Cleanup: If the app closes/crashes, mark them inactive
+    // Cleanup: If the app closes, set active to false
     dbRef.child("grouping/$myPhone/isActive").onDisconnect().set(false);
+
+    // 2. Start listeners
+    listenForActiveUsers();
+    listenForIncomingRequests();
   }
 
-  // --- REAL-TIME LOCATION & FILTERING ---
-
-  Future<void> startLocationTracking() async {
-    positionStream = Geolocator.getPositionStream(
-      locationSettings: const LocationSettings(
-        accuracy: LocationAccuracy.high, 
-        distanceFilter: 5 // Updates every 5 meters
-      ),
-    ).listen((Position position) {
-      myLat = position.latitude;
-      myLng = position.longitude;
-
-      if (myPhone != null) {
-        dbRef.child("grouping/$myPhone").update({
-          "lat": myLat,
-          "long": myLng,
-          "lastSeen": ServerValue.timestamp,
-        });
-      }
-      if (mounted) setState(() {});
-    });
-  }
-
-  void listenForNearbyUsers() {
+  // --- SHOW ALL USERS WHERE ISACTIVE == TRUE ---
+  void listenForActiveUsers() {
     dbRef.child("grouping").onValue.listen((event) {
-      if (myLat == null || myLng == null) return;
-      
       final data = event.snapshot.value as Map?;
       if (data == null) return;
 
       List<Map<String, dynamic>> tempList = [];
       data.forEach((key, value) {
-        if (key == myPhone) return; // Skip self
+        if (key == myPhone) return; // Don't show myself
         
         final user = Map<String, dynamic>.from(value);
         
-        // Filter: Active users going to the SAME destination
+        // FILTER: Only show users who are ACTIVE and going to the SAME destination
         if (user["isActive"] == true && user["destinationId"] == widget.destinationId) {
-          double distance = calculateDistance(myLat!, myLng!, user["lat"], user["long"]);
-          
-          // Only show users within 500 meters
-          if (distance <= 500) { 
-            tempList.add({
-              "phone": key, 
-              "distance": distance.toStringAsFixed(0)
-            });
-          }
+          tempList.add({
+            "phone": key,
+            "status": "Online",
+          });
         }
       });
-      if (mounted) setState(() => nearbyUsers = tempList);
+
+      if (mounted) setState(() => activeUsers = tempList);
     });
   }
 
-  // --- REQUEST LOGIC ---
-
-  // --- UPDATED REQUEST LOGIC ---
-
   void listenForIncomingRequests() {
-    // 1. Listen for requests sent TO ME (Receiver side)
+    // Receiver Side: Someone sent a request to ME
     dbRef.child("rideRequests").orderByChild("to").equalTo(myPhone).onChildAdded.listen((event) {
       final data = Map<String, dynamic>.from(event.snapshot.value as Map);
       if (data["status"] == "pending") {
@@ -160,18 +91,12 @@ class _NearbyUsersPageState extends State<NearbyUsersPage> {
       }
     });
 
-    // 2. Listen for status changes on requests I SENT (Sender side)
-    dbRef.child("rideRequests").orderByChild("from").equalTo(myPhone).onChildChanged.listen((event) {
+    // Sender/Receiver Side: The request was accepted
+    dbRef.child("rideRequests").onChildChanged.listen((event) {
       final data = Map<String, dynamic>.from(event.snapshot.value as Map);
-      if (data["status"] == "accepted" && data["groupId"] != null && !hasNavigatedToGroup) {
-        _navigateToGroup(data["groupId"]);
-      }
-    });
-
-    // 3. Optional: Listen for when a request I RECEIVED is accepted (In case of multiple requests)
-    dbRef.child("rideRequests").orderByChild("to").equalTo(myPhone).onChildChanged.listen((event) {
-      final data = Map<String, dynamic>.from(event.snapshot.value as Map);
-      if (data["status"] == "accepted" && data["groupId"] != null && !hasNavigatedToGroup) {
+      bool involvesMe = data["from"] == myPhone || data["to"] == myPhone;
+      
+      if (involvesMe && data["status"] == "accepted" && !hasNavigatedToGroup) {
         _navigateToGroup(data["groupId"]);
       }
     });
@@ -191,7 +116,7 @@ class _NearbyUsersPageState extends State<NearbyUsersPage> {
       barrierDismissible: false,
       builder: (context) => AlertDialog(
         title: const Text("Ride Request"),
-        content: Text("User $senderPhone wants to share a ride."),
+        content: Text("User $senderPhone is ready to go!"),
         actions: [
           TextButton(
             onPressed: () {
@@ -202,22 +127,15 @@ class _NearbyUsersPageState extends State<NearbyUsersPage> {
           ),
           ElevatedButton(
             onPressed: () async {
-              // Close dialog first
               Navigator.pop(context);
-              
-              // 1. Generate the Group ID
               String groupId = dbRef.child("rideGroups").push().key!;
               
-              // 2. Create the Group
               await dbRef.child("rideGroups/$groupId").set({
                 "members": { myPhone!: true, senderPhone: true },
                 "destination": widget.destinationId,
-                "status": "waiting", // For the sync logic we built earlier
                 "createdAt": ServerValue.timestamp,
               });
 
-              // 3. Update request status. 
-              // This triggers 'onChildChanged' for the SENDER and the listener above for the RECEIVER.
               await dbRef.child("rideRequests/$requestId").update({
                 "status": "accepted",
                 "groupId": groupId,
@@ -230,16 +148,6 @@ class _NearbyUsersPageState extends State<NearbyUsersPage> {
     );
   }
 
-  Future<void> _createRideGroup(String otherPhone, String requestId) async {
-    String groupId = dbRef.child("rideGroups").push().key!;
-    await dbRef.child("rideGroups/$groupId").set({
-      "members": { myPhone!: true, otherPhone: true },
-      "destination": widget.destinationId,
-      "createdAt": ServerValue.timestamp,
-    });
-    await dbRef.child("rideRequests/$requestId").update({"groupId": groupId});
-  }
-
   Future<void> sendRideRequest(String receiverPhone) async {
     String requestId = dbRef.child("rideRequests").push().key!;
     await dbRef.child("rideRequests/$requestId").set({
@@ -248,19 +156,13 @@ class _NearbyUsersPageState extends State<NearbyUsersPage> {
       "status": "pending",
       "createdAt": ServerValue.timestamp,
     });
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Request Sent!")));
-  }
-
-  double calculateDistance(double lat1, double lon1, double lat2, double lon2) {
-    const p = 0.017453292519943295;
-    final a = 0.5 - cos((lat2 - lat1) * p) / 2 + 
-              cos(lat1 * p) * cos(lat2 * p) * (1 - cos((lon2 - lon1) * p)) / 2;
-    return 12742 * asin(sqrt(a)) * 1000;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text("Request sent to $receiverPhone")),
+    );
   }
 
   @override
   void dispose() {
-    positionStream?.cancel();
     if (myPhone != null) {
       dbRef.child("grouping/$myPhone").update({"isActive": false});
     }
@@ -270,19 +172,36 @@ class _NearbyUsersPageState extends State<NearbyUsersPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Nearby Commuters"), backgroundColor: Colors.indigo),
-      body: nearbyUsers.isEmpty 
-        ? const Center(child: Text("Searching for people nearby..."))
+      appBar: AppBar(
+        title: Text("Going to ${widget.destinationName}"),
+        backgroundColor: Colors.indigo,
+      ),
+      body: activeUsers.isEmpty 
+        ? const Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                CircularProgressIndicator(),
+                SizedBox(height: 16),
+                Text("Waiting for others to join..."),
+              ],
+            ),
+          )
         : ListView.builder(
-            itemCount: nearbyUsers.length,
+            padding: const EdgeInsets.all(8),
+            itemCount: activeUsers.length,
             itemBuilder: (context, index) {
-              final user = nearbyUsers[index];
-              return ListTile(
-                title: Text("Commuter: ${user['phone']}"),
-                subtitle: Text("${user['distance']}m away"),
-                trailing: ElevatedButton(
-                  onPressed: () => sendRideRequest(user['phone']),
-                  child: const Text("Request"),
+              final user = activeUsers[index];
+              return Card(
+                elevation: 2,
+                child: ListTile(
+                  leading: const Icon(Icons.account_circle, size: 40, color: Colors.indigo),
+                  title: Text(user['phone']),
+                  subtitle: const Text("Status: Active", style: TextStyle(color: Colors.green)),
+                  trailing: ElevatedButton(
+                    onPressed: () => sendRideRequest(user['phone']),
+                    child: const Text("Request"),
+                  ),
                 ),
               );
             },
