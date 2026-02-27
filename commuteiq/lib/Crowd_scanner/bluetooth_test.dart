@@ -308,6 +308,7 @@ class _CrowdScannerScreenState extends State<CrowdScannerScreen> {
 
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
 
+
                 ),
 
               ),
