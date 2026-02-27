@@ -1,3 +1,4 @@
+import 'package:commuteiq/App_Drawer_Screen/simple_map.dart';
 import 'package:commuteiq/auth/register_screen.dart';
 import 'package:flutter/material.dart';
 // import 'package:lastmile_transport/Grouping_feature/temp.dart';
@@ -90,20 +91,20 @@ class AppDrawer extends StatelessWidget {
               );
             },
           ),
-          // _drawerItem(
-          //   context,
-          //   Icons.ev_station,
-          //   "Neighbour Convoy",
-          //   () {
-          //     Navigator.pop(context);
-          //     Navigator.push(
-          //       context,
-          //       MaterialPageRoute(
-          //         // builder: (_) => const ConvoyMapSimulationScreen(),
-          //       ),
-          //     );
-          //   },
-          // ),
+          _drawerItem(
+            context,
+            Icons.ev_station,
+            "Map Screen",
+            () {
+              Navigator.pop(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const SimpleMapScreen(),
+                ),
+              );
+            },
+          ),
           // _drawerItem(
           //   context,
           //   Icons.ev_station,
