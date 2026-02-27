@@ -1,7 +1,8 @@
 import 'dart:async';
-import 'dart:math';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:http/http.dart' as http;
 
 class PrivateTravelScreen extends StatefulWidget {
   final String sourceName;
@@ -29,93 +30,159 @@ class _PrivateTravelScreenState extends State<PrivateTravelScreen> {
   final Completer<GoogleMapController> _controller = Completer();
   final Set<Polyline> _polylines = {};
   final Set<Marker> _markers = {};
+  final Set<Circle> _circles = {};
+
+  static const String _apiKey = "AIzaSyA3vnLO1Ajwovs_I2IjAuDqEGMPeMpTBxc";
+  static const String _mlServerUrl = "https://b9m28n2k-8000.inc1.devtunnels.ms/vehicle-count";
 
   bool _isAnalyzing = false;
-  String _congestionStatus = "Tap to Analyze Traffic";
+  String _congestionStatus = "Tap to Analyze Multiple Routes";
+  
 
-  // Hardcoded Signals Data
   final List<Map<String, dynamic>> _signals = [
-    {"name": "University Circle Signal", "time": "45s", "status": "Heavy"},
-    {"name": "Shivaji Nagar Square", "time": "20s", "status": "Moderate"},
-    {"name": "Swargate Junction", "time": "10s", "status": "Clear"},
+    {
+      "name": "University Circle Signal",
+      "time": "45s",
+      "status": "Clear",
+      "lat": 18.5515,
+      "lng": 73.8235
+    },
+    {
+      "name": "Shivaji Nagar Square",
+      "time": "20s",
+      "status": "Clear",
+      "lat": 18.5314,
+      "lng": 73.8552
+    },
+    {
+      "name": "Swargate Junction",
+      "time": "10s",
+      "status": "Clear",
+      "lat": 18.5018,
+      "lng": 73.8636
+    },
   ];
 
   @override
   void initState() {
     super.initState();
-    _initializeMapFeatures();
+    _initializeMarkers();
+    _getMultipleDirections();
   }
 
-  void _initializeMapFeatures() {
-    // 1. Add Source and Destination Markers
+  void _initializeMarkers() {
     _markers.add(Marker(
       markerId: const MarkerId('source'),
       position: LatLng(widget.sourceLat, widget.sourceLng),
-      infoWindow: InfoWindow(title: widget.sourceName),
       icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
     ));
 
     _markers.add(Marker(
       markerId: const MarkerId('dest'),
       position: LatLng(widget.destLat, widget.destLng),
-      infoWindow: InfoWindow(title: widget.destName),
       icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
-    ));
-
-    // 2. Create a simple direct Polyline
-    _polylines.add(Polyline(
-      polylineId: const PolylineId('route'),
-      points: [
-        LatLng(widget.sourceLat, widget.sourceLng),
-        LatLng(widget.destLat, widget.destLng),
-      ],
-      color: Colors.blueAccent,
-      width: 5,
     ));
   }
 
-  void _analyzeCongestion() async {
+  Future<void> _getMultipleDirections() async {
+    final String url =
+        "https://maps.googleapis.com/maps/api/directions/json?origin=${widget.sourceLat},${widget.sourceLng}&destination=${widget.destLat},${widget.destLng}&alternatives=true&key=$_apiKey";
+
+    try {
+      final response = await http.get(Uri.parse(url));
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data['routes'] != null && data['routes'].isNotEmpty) {
+          List routes = data['routes'];
+          setState(() {
+            _polylines.clear();
+            for (int i = 0; i < routes.length; i++) {
+              final points = routes[i]['overview_polyline']['points'];
+              _polylines.add(Polyline(
+                polylineId: PolylineId('route_$i'),
+                points: _decodePolyline(points),
+                color: i == 0 ? Colors.blueAccent : Colors.red.withOpacity(0.7),
+                width: i == 0 ? 6 : 4,
+                zIndex: i == 0 ? 1 : 0,
+              ));
+            }
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint("Directions Error: $e");
+    }
+  }
+
+  Future<void> _analyzeCongestion() async {
     setState(() {
       _isAnalyzing = true;
-      _congestionStatus = "Analyzing Real-time Traffic...";
+      _congestionStatus = "Syncing with ML Vision nodes...";
+      _circles.clear();
     });
 
-    // Simulate Processing
-    await Future.delayed(const Duration(seconds: 2));
+    try {
+      final response = await http.get(Uri.parse(_mlServerUrl)).timeout(const Duration(seconds: 10));
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        bool hasAlert = data['alert'] ?? false;
+        
+        setState(() {
+          _isAnalyzing = false;
+          if (hasAlert) {
+            _congestionStatus = "ML ALERT: Heavy Traffic at University Circle!";
+            _signals[0]['status'] = "Heavy";
 
-    setState(() {
-      _isAnalyzing = false;
-      _congestionStatus = "Congestion Detected: 12 min delay on Satara Road";
-    });
+            _circles.add(Circle(
+              circleId: const CircleId("heavy_zone_1"),
+              center: LatLng(_signals[0]['lat'], _signals[0]['lng']),
+              radius: 250,
+              fillColor: Colors.red.withOpacity(0.4),
+              strokeColor: Colors.red,
+              strokeWidth: 2,
+            ));
+            _animateToPos(_signals[0]['lat'], _signals[0]['lng']);
+          } else {
+            _congestionStatus = "AI SCAN: Traffic normal. Alternative paths clear.";
+            _signals[0]['status'] = "Clear";
+          }
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _isAnalyzing = false;
+        _congestionStatus = "Sync Error: Dev Tunnel offline.";
+      });
+    }
+  }
+
+  Future<void> _animateToPos(double lat, double lng) async {
+    final GoogleMapController controller = await _controller.future;
+    controller.animateCamera(CameraUpdate.newLatLngZoom(LatLng(lat, lng), 15));
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Private Vehicle Route"),
+        title: const Text("Multi-Route Intelligence"),
         backgroundColor: Colors.blueAccent,
         foregroundColor: Colors.white,
       ),
       body: Column(
         children: [
-          // 1. MAP WIDGET (Top 50% of screen)
           Expanded(
             flex: 3,
             child: GoogleMap(
-              initialCameraPosition: CameraPosition(
-                target: LatLng(widget.sourceLat, widget.sourceLng),
-                zoom: 13,
-              ),
+              initialCameraPosition: CameraPosition(target: LatLng(widget.sourceLat, widget.sourceLng), zoom: 13),
               onMapCreated: (controller) => _controller.complete(controller),
               markers: _markers,
               polylines: _polylines,
-              myLocationButtonEnabled: false,
+              circles: _circles,
+              myLocationEnabled: true,
               zoomControlsEnabled: false,
             ),
           ),
-
-          // 2. BOTTOM INFO PANEL
           Expanded(
             flex: 2,
             child: Container(
@@ -131,27 +198,22 @@ class _PrivateTravelScreenState extends State<PrivateTravelScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text("Live Signals Tracker", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                      const Text("Signal Comparison", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                       TextButton.icon(
                         onPressed: _analyzeCongestion,
-                        icon: _isAnalyzing 
+                        icon: _isAnalyzing
                             ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
-                            : const Icon(Icons.analytics, size: 18),
-                        label: const Text("Analyze Traffic"),
+                            : const Icon(Icons.psychology, size: 18),
+                        label: const Text("Scan Routes"),
                       )
                     ],
                   ),
-                  Text(_congestionStatus, style: TextStyle(color: Colors.grey[700], fontSize: 13)),
-                  const SizedBox(height: 10),
-                  
-                  // Signals List
+                  Text(_congestionStatus, style: const TextStyle(color: Colors.grey, fontSize: 13, fontWeight: FontWeight.w500)),
+                  const Divider(height: 20),
                   Expanded(
                     child: ListView.builder(
                       itemCount: _signals.length,
-                      itemBuilder: (context, index) {
-                        final signal = _signals[index];
-                        return _buildSignalItem(signal);
-                      },
+                      itemBuilder: (context, index) => _buildSignalItem(_signals[index]),
                     ),
                   ),
                 ],
@@ -165,19 +227,18 @@ class _PrivateTravelScreenState extends State<PrivateTravelScreen> {
 
   Widget _buildSignalItem(Map<String, dynamic> signal) {
     Color statusColor = signal['status'] == 'Heavy' ? Colors.red : (signal['status'] == 'Moderate' ? Colors.orange : Colors.green);
-
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8.0),
       child: Row(
         children: [
-          Icon(Icons.traffic, color: statusColor, size: 20),
+          Icon(Icons.traffic, color: statusColor, size: 22),
           const SizedBox(width: 15),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(signal['name'], style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
-                Text("Est. Wait: ${signal['time']}", style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                Text("Delay: ${signal['time']}", style: const TextStyle(color: Colors.grey, fontSize: 12)),
               ],
             ),
           ),
@@ -189,5 +250,20 @@ class _PrivateTravelScreenState extends State<PrivateTravelScreen> {
         ],
       ),
     );
+  }
+
+  List<LatLng> _decodePolyline(String encoded) {
+    List<LatLng> poly = [];
+    int index = 0, len = encoded.length, lat = 0, lng = 0;
+    while (index < len) {
+      int b, shift = 0, result = 0;
+      do { b = encoded.codeUnitAt(index++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
+      lat += ((result & 1) != 0 ? ~(result >> 1) : (result >> 1));
+      shift = 0; result = 0;
+      do { b = encoded.codeUnitAt(index++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
+      lng += ((result & 1) != 0 ? ~(result >> 1) : (result >> 1));
+      poly.add(LatLng(lat / 1E5, lng / 1E5));
+    }
+    return poly;
   }
 }
