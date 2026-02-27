@@ -1,5 +1,6 @@
 import 'package:commuteiq/App_Drawer_Screen/simple_map.dart';
 import 'package:commuteiq/auth/register_screen.dart';
+import 'package:commuteiq/temp_database/upload_metro_data.dart';
 import 'package:flutter/material.dart';
 // import 'package:lastmile_transport/Grouping_feature/temp.dart';
 // import 'package:lastmile_transport/MetroSync/metroSync_test.dart';
@@ -64,18 +65,18 @@ class AppDrawer extends StatelessWidget {
           const SizedBox(height: 12),
 
           // 🔹 MENU ITEMS
-          // _drawerItem(
-          //   context,
-          //   Icons.smart_toy_outlined,
-          //   "Chatbot",
-          //   () {
-          //     Navigator.pop(context);
-          //     Navigator.push(
-          //       context,
-          //       // MaterialPageRoute(builder: (_) => const ChatScreen()),
-          //     );
-          //   },
-          // ),
+          _drawerItem(
+            context,
+            Icons.smart_toy_outlined,
+            "Insert Metro ",
+            () {
+              Navigator.pop(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) =>  UploadMetroDataPage()),
+              );
+            },
+          ),
 
           _drawerItem(
             context,
