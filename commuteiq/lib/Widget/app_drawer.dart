@@ -2,6 +2,7 @@ import 'package:commuteiq/App_Drawer_Screen/multimodal_simulation_screen.dart';
 import 'package:commuteiq/App_Drawer_Screen/simple_map.dart';
 import 'package:commuteiq/MultiModel_feature/search_route_screen.dart';
 import 'package:commuteiq/auth/register_screen.dart';
+import 'package:commuteiq/cascade_feature/disruption_cascade_screen.dart';
 import 'package:commuteiq/temp_database/upload_metro_data.dart';
 import 'package:flutter/material.dart';
 // import 'package:lastmile_transport/Grouping_feature/temp.dart';
@@ -122,18 +123,18 @@ class AppDrawer extends StatelessWidget {
               );
             },
           ),
-          // _drawerItem(
-          //   context,
-          //   Icons.groups_rounded,
-          //   "Group & Ride",
-          //   () {
-          //     Navigator.pop(context);
-          //     Navigator.push(
-          //       context,
-          //       // MaterialPageRoute(builder: (_) => const RidesPage()),
-          //     );
-          //   },
-          // ),
+          _drawerItem(
+            context,
+            Icons.groups_rounded,
+            "Disrption Cascade",
+            () {
+              Navigator.pop(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const DisruptionCascadeScreen()),
+              );
+            },
+          ),
 
           // _drawerItem(
           //   context,
