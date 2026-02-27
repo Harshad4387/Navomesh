@@ -1,7 +1,16 @@
 import 'package:commuteiq/App_Drawer_Screen/multimodal_simulation_screen.dart';
 import 'package:commuteiq/App_Drawer_Screen/simple_map.dart';
+import 'package:commuteiq/Congestion_feature/congestion.dart';
+
+import 'package:commuteiq/Crowd_report/crowd_screen.dart';
+
+import 'package:commuteiq/Crowd_scanner/bluetooth_test.dart';
 import 'package:commuteiq/MultiModel_feature/search_route_screen.dart';
+import 'package:commuteiq/Re_routing/simulation.dart';
+import 'package:commuteiq/amubulance_feature/add_emergency.dart';
 import 'package:commuteiq/auth/register_screen.dart';
+import 'package:commuteiq/cascade_feature/disruption_cascade_screen.dart';
+import 'package:commuteiq/data/upload_schedules_page.dart';
 import 'package:commuteiq/temp_database/upload_metro_data.dart';
 import 'package:flutter/material.dart';
 // import 'package:lastmile_transport/Grouping_feature/temp.dart';
@@ -70,12 +79,12 @@ class AppDrawer extends StatelessWidget {
           _drawerItem(
             context,
             Icons.smart_toy_outlined,
-            "Insert Metro ",
+            "Insert Metro trains ",
             () {
               Navigator.pop(context);
               Navigator.push(
                 context,
-                MaterialPageRoute(builder: (_) =>  UploadMetroDataPage()),
+                MaterialPageRoute(builder: (_) =>  UploadSchedulesPage()),
               );
             },
           ),
@@ -122,32 +131,71 @@ class AppDrawer extends StatelessWidget {
               );
             },
           ),
-          // _drawerItem(
-          //   context,
-          //   Icons.groups_rounded,
-          //   "Group & Ride",
-          //   () {
-          //     Navigator.pop(context);
-          //     Navigator.push(
-          //       context,
-          //       // MaterialPageRoute(builder: (_) => const RidesPage()),
-          //     );
-          //   },
-          // ),
+        
+          _drawerItem(
+            context,
+            Icons.groups_rounded,
+            "Disrption Cascade",
+            () {
+              Navigator.pop(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const DisruptionCascadeScreen()),
+              );
+            },
+          ),
+          _drawerItem(
+            context,
+            Icons.groups_rounded,
+            "Niraj chi gand ",
+            () {
+              Navigator.pop(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const KothrudPreShockSimulator()),
+              );
+            },
+          ),
 
-          // _drawerItem(
-          //   context,
-          //   Icons.pedal_bike_rounded,
-          //   "Paid Lift",
-          //   () {
-          //     Navigator.pop(context);
-          //     Navigator.push(
-          //       context,
-          //       MaterialPageRoute(
-          //           builder: (_) => const RoleSelectionScreen()),
-          //     );
-          //   },
-          // ),
+          _drawerItem(
+            context,
+            Icons.pedal_bike_rounded,
+            "Add emergency",
+            () {
+              Navigator.pop(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (_) => const AmbulanceEmergencyScreen()),
+              );
+            },
+          ),
+             _drawerItem(
+            context,
+            Icons.pedal_bike_rounded,
+            "Crowd Report",
+            () {
+              Navigator.pop(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (_) => const CrowdMapScreen ()),
+              );
+            },
+          ),
+            _drawerItem(
+            context,
+            Icons.pedal_bike_rounded,
+            "re - Routing",
+            () {
+              Navigator.pop(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (_) => const RouteSimulationPage ()),
+              );
+            },
+          ),
 
           const Spacer(),
           const Divider(),
