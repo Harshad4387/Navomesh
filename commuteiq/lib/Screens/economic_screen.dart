@@ -6,7 +6,6 @@ import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:qr_flutter/qr_flutter.dart';
-// import 'group_ride_screen.dart'; // ✅ Import your new screen here
 
 class EconomicTravelScreen extends StatefulWidget {
   final String sourceName;
@@ -33,7 +32,6 @@ class EconomicTravelScreen extends StatefulWidget {
 class _EconomicTravelScreenState extends State<EconomicTravelScreen> {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
   
-  // Mock Data for Group Rides (Nash Equilibrium logic)
   final Map<String, dynamic> _groupRideDetails = {
     "provider": "UrbanFlow Collective",
     "vehicle": "Smart Shuttle (EV)",
@@ -110,105 +108,140 @@ class _EconomicTravelScreenState extends State<EconomicTravelScreen> {
     );
   }
 
-  // ✅ Navigation to Group Ride Details
-// ✅ Navigation to Nearby Users / Group Ride Details
-void _navigateToGroupRide() {
-  debugPrint("Attempting to navigate to NearbyUsersPage...");
-  debugPrint("Destination: ${widget.destName}");
-
-  try {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) {
-          debugPrint("Building NearbyUsersPage...");
-          return NearbyUsersPage(
+  void _navigateToGroupRide() {
+    try {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => NearbyUsersPage(
             destinationId: widget.destName.split(',')[0].trim(), 
             destinationName: widget.destName,
             destLat: widget.destLat,
             destLng: widget.destLng,
-          );
-        },
-      ),
-    ).then((value) => debugPrint("Navigation Success"))
-     .catchError((error) => debugPrint("Navigation Error: $error"));
-  } catch (e) {
-    debugPrint("Immediate Catch: $e");
+          ),
+        ),
+      );
+    } catch (e) {
+      debugPrint("Catch: $e");
+    }
   }
-}
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-     appBar: AppBar(
-        title: const Text("Economic Journey Plan"),
-        backgroundColor: Colors.green[800],
-        foregroundColor: Colors.white,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.account_circle),
-            onPressed: () {
-              // Replace 'ProfileScreen()' with your actual profile page class name
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const RegisterPage()),
-              );
-            },
-          ),
-        ],
-      ),
+      backgroundColor: Colors.white,
       body: _isLoading 
         ? const Center(child: CircularProgressIndicator())
-        : SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildRouteSummary(),
-                const SizedBox(height: 25),
-                const Text("MULTIMODAL PLAN", style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1.2)),
-                const SizedBox(height: 15),
-                _buildJourneyTimeline(),
-                const SizedBox(height: 25),
-                // ✅ Replaced Uber section with Group Ride
-                GestureDetector(
-                  onTap: _navigateToGroupRide,
-                  child: _buildGroupRideSection(),
+        : Stack(
+            children: [
+              // 1. TOP MAP SECTION (Placeholder for Google Map)
+              Positioned(
+                top: 0, left: 0, right: 0, height: MediaQuery.of(context).size.height * 0.4,
+                child: Container(
+                  color: Colors.grey[200],
+                  child: const Center(child: Icon(Icons.map, size: 50, color: Colors.grey)),
                 ),
-                const SizedBox(height: 30),
-                _buildGenerateTokenButton(),
-              ],
-            ),
+              ),
+
+              // 2. SEARCH BAR OVERLAY
+              Positioned(
+                top: 50, left: 20, right: 20,
+                child: _buildFloatingSearchBar(),
+              ),
+
+              // 3. DRAGGABLE BOTTOM SHEET
+              DraggableScrollableSheet(
+                initialChildSize: 0.65,
+                minChildSize: 0.6,
+                maxChildSize: 0.95,
+                builder: (context, scrollController) {
+                  return Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    decoration: const BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+                      boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10, spreadRadius: 2)],
+                    ),
+                    child: ListView(
+                      controller: scrollController,
+                      children: [
+                        Center(child: Container(margin: const EdgeInsets.only(top: 12, bottom: 20), width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(10)))),
+                        
+                        _buildTripHighlights(),
+                        
+                        const Divider(height: 40),
+                        
+                        const Text("MULTIMODAL PLAN", style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13, letterSpacing: 1.2, color: Colors.blueGrey)),
+                        const SizedBox(height: 20),
+                        
+                        _buildJourneyTimeline(),
+                        
+                        const SizedBox(height: 20),
+                        
+                        GestureDetector(
+                          onTap: _navigateToGroupRide,
+                          child: _buildGroupRideSection(),
+                        ),
+                        
+                        const SizedBox(height: 30),
+                        
+                        _buildGenerateTokenButton(),
+                        const SizedBox(height: 50),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ],
           ),
     );
   }
 
-  Widget _buildRouteSummary() {
-    return Card(
-      elevation: 0,
-      color: Colors.grey[100],
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            _summaryRow(Icons.my_location, Colors.green, widget.sourceName),
-            const SizedBox(height: 10),
-            const Icon(Icons.more_vert, size: 16, color: Colors.grey),
-            const SizedBox(height: 10),
-            _summaryRow(Icons.location_on, Colors.red, widget.destName),
-          ],
-        ),
+  Widget _buildFloatingSearchBar() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(40),
+        boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 10)],
+      ),
+      child: Row(
+        children: [
+          IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => Navigator.pop(context)),
+          const CircleAvatar(radius: 4, backgroundColor: Colors.blueAccent),
+          const SizedBox(width: 8),
+          Expanded(child: Text(widget.sourceName, style: const TextStyle(fontSize: 14), overflow: TextOverflow.ellipsis)),
+          const Icon(Icons.arrow_forward, size: 16, color: Colors.grey),
+          const SizedBox(width: 8),
+          const CircleAvatar(radius: 4, backgroundColor: Colors.redAccent),
+          const SizedBox(width: 8),
+          Expanded(child: Text(widget.destName, style: const TextStyle(fontSize: 14), overflow: TextOverflow.ellipsis)),
+        ],
       ),
     );
   }
 
-  Widget _summaryRow(IconData icon, Color color, String text) {
+  Widget _buildTripHighlights() {
     return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Icon(icon, color: color, size: 18),
-        const SizedBox(width: 12),
-        Expanded(child: Text(text, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500), overflow: TextOverflow.ellipsis)),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), decoration: BoxDecoration(color: Colors.green[50], borderRadius: BorderRadius.circular(8)), child: Text("FASTEST", style: TextStyle(color: Colors.green[800], fontSize: 10, fontWeight: FontWeight.bold))),
+            const SizedBox(height: 8),
+            const Text("28 min", style: TextStyle(fontSize: 32, fontWeight: FontWeight.w900)),
+            Text("Arrives at 10:45 AM", style: TextStyle(color: Colors.grey[600], fontSize: 14)),
+          ],
+        ),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Container(height: 60, width: 60, decoration: BoxDecoration(color: Colors.grey[100], borderRadius: BorderRadius.circular(16)), child: const Icon(Icons.directions_bus_filled, color: Colors.green, size: 30)),
+            const SizedBox(height: 8),
+            Text("₹45 • -1.2kg CO2", style: TextStyle(color: Colors.green[700], fontWeight: FontWeight.bold, fontSize: 12)),
+          ],
+        )
       ],
     );
   }
@@ -216,96 +249,69 @@ void _navigateToGroupRide() {
   Widget _buildJourneyTimeline() {
     return Column(
       children: [
-        _timelineStep(Icons.directions_walk, "Walk to Hub", "2 mins to nearest pickup"),
-        _timelineStep(
-          Icons.subway, 
-          _matchedMetroSchedules.isNotEmpty ? "Metro ${_matchedMetroSchedules.first['train_id']}" : "Aqua Line Metro", 
-          "Next: ${_matchedMetroSchedules.isNotEmpty ? _matchedMetroSchedules.first['arrival'] : '12:45 PM'}",
-          color: Colors.blue,
-          isLive: true,
-          trailing: IconButton(
-            icon: const Icon(Icons.qr_code, color: Colors.blueAccent),
-            onPressed: () => _showMetroQR(
-              _matchedMetroSchedules.isNotEmpty ? _matchedMetroSchedules.first['train_id'] : "AQUA",
-              _matchedMetroSchedules.isNotEmpty ? _matchedMetroSchedules.first['station'] : "Central Hub",
-            ),
-          ),
-        ),
-        // ✅ Changed Uber Connect to Group Ride in Timeline
-        _timelineStep(
-          Icons.groups, 
-          "Group Ride (Shared)", 
-          "Collective Optimization Active", 
-          color: Colors.indigo,
-          trailing: const Icon(Icons.chevron_right, color: Colors.grey),
-        ),
+        _timelineStep(Icons.directions_walk, "Walk to Hub", "400m • Main St Entrance", "5 min", isFirst: true),
+        _timelineStep(Icons.subway, "Metro Line 1", "Platform 2 • On Time", "15 min", color: Colors.blueAccent, showAction: true),
+        _timelineStep(Icons.directions_car, "Auto to Destination", "Booked • KA-05-MJ-1234", "8 min", isLast: true),
       ],
     );
   }
 
-  Widget _timelineStep(IconData icon, String title, String subtitle, {Color color = Colors.grey, bool isLive = false, Widget? trailing}) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Column(
-          children: [
-            Icon(icon, color: color),
-            Container(width: 2, height: 40, color: Colors.grey[300]),
-          ],
-        ),
-        const SizedBox(width: 15),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _timelineStep(IconData icon, String title, String subtitle, String time, {Color color = Colors.grey, bool isFirst = false, bool isLast = false, bool showAction = false}) {
+    return IntrinsicHeight(
+      child: Row(
+        children: [
+          Column(
             children: [
-              Row(
+              Container(width: 2, height: 10, color: isFirst ? Colors.transparent : Colors.grey[300]),
+              Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: color.withOpacity(0.1), shape: BoxShape.circle), child: Icon(icon, color: color, size: 20)),
+              Expanded(child: Container(width: 2, color: isLast ? Colors.transparent : Colors.grey[300])),
+            ],
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(child: Text(title, style: const TextStyle(fontWeight: FontWeight.bold))),
-                  if (isLive) ...[
-                    Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: Colors.green[100], borderRadius: BorderRadius.circular(4)), child: const Text("LIVE", style: TextStyle(color: Colors.green, fontSize: 10, fontWeight: FontWeight.bold))),
-                  ],
-                  if (trailing != null) trailing,
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                      Text(time, style: TextStyle(color: Colors.grey[600], fontWeight: FontWeight.bold)),
+                    ],
+                  ),
+                  Text(subtitle, style: TextStyle(color: Colors.grey[500], fontSize: 13)),
+                  if (showAction) ...[
+                    const SizedBox(height: 8),
+                    InkWell(
+                      onTap: () => _showMetroQR("AQUA", "Central"),
+                      child: Text("VIEW TICKET", style: TextStyle(color: Colors.blue[800], fontSize: 11, fontWeight: FontWeight.w900, decoration: TextDecoration.underline)),
+                    )
+                  ]
                 ],
               ),
-              Text(subtitle, style: const TextStyle(fontSize: 12, color: Colors.grey)),
-              const SizedBox(height: 20),
-            ],
+            ),
           ),
-        )
-      ],
+        ],
+      ),
     );
   }
 
-  // ✅ New Group Ride UI Section
   Widget _buildGroupRideSection() {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.indigo[50],
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.indigo[200]!),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.grey[200]!),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text("Nash Optimized Group Ride", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.indigo)),
-              Text(_groupRideDetails['price'], style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
-            ],
-          ),
-          const Divider(color: Colors.indigo),
-          ListTile(
-            contentPadding: EdgeInsets.zero,
-            leading: const CircleAvatar(backgroundColor: Colors.indigo, child: Icon(Icons.airport_shuttle, color: Colors.white)),
-            title: Text(_groupRideDetails['provider']),
-            subtitle: Text(_groupRideDetails['savings']),
-            trailing: Text(_groupRideDetails['eta'], style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.blue)),
-          ),
-          const Center(
-            child: Text("Tap to view allocation and route details", style: TextStyle(fontSize: 10, color: Colors.indigo)),
-          )
+          const Icon(Icons.people, color: Colors.blueGrey),
+          const SizedBox(width: 12),
+          const Expanded(child: Text("Group Ride", style: TextStyle(fontWeight: FontWeight.bold))),
+          const Icon(Icons.arrow_forward_ios, size: 14),
         ],
       ),
     );
@@ -314,18 +320,11 @@ void _navigateToGroupRide() {
   Widget _buildGenerateTokenButton() {
     return SizedBox(
       width: double.infinity,
-      height: 55,
-      child: ElevatedButton.icon(
-        onPressed: () {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Unified Token Generated!")));
-        },
-        icon: const Icon(Icons.qr_code_2),
-        label: const Text("GENERATE MULTIMODAL TOKEN", style: TextStyle(fontWeight: FontWeight.bold)),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.green[800],
-          foregroundColor: Colors.white,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        ),
+      height: 60,
+      child: ElevatedButton(
+        onPressed: () {},
+        style: ElevatedButton.styleFrom(backgroundColor: Colors.blueAccent, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20))),
+        child: const Text("Generate QR", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
       ),
     );
   }

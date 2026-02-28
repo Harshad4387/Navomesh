@@ -1,5 +1,6 @@
 import 'dart:convert';
-import 'dart:ui' as ui; // ✅ Added for marker generation
+import 'dart:ui' as ui;
+import 'package:commuteiq/Grouping_feature/nearby_page.dart';
 import 'package:commuteiq/auth/register_screen.dart';
 import 'package:commuteiq/cascade_feature/disruption_cascade_screen.dart';
 import 'package:commuteiq/metrosync/metrosync.dart';
@@ -31,7 +32,6 @@ class _HomePageState extends State<HomePage> {
   String _destName = "";
 
   int _selectedIndex = 0;
-  
   Set<Marker> _markers = {};
 
   @override
@@ -40,19 +40,17 @@ class _HomePageState extends State<HomePage> {
     _fetchMetroLocations();
   }
 
-  // ✅ Updated for a smaller icon size (45.0)
   Future<BitmapDescriptor> _getBitmapDescriptorFromIcon(IconData iconData, Color color) async {
     final pictureRecorder = ui.PictureRecorder();
     final canvas = Canvas(pictureRecorder);
     final textPainter = TextPainter(textDirection: TextDirection.ltr);
     final iconStr = String.fromCharCode(iconData.codePoint);
-
-    const double iconSize = 45.0; // Reduced from 100.0
+    const double iconSize = 45.0;
 
     textPainter.text = TextSpan(
       text: iconStr,
       style: TextStyle(
-        fontSize: iconSize, 
+        fontSize: iconSize,
         fontFamily: iconData.fontFamily,
         package: iconData.fontPackage,
         color: color,
@@ -70,29 +68,17 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _fetchMetroLocations() async {
     try {
-      // ✅ Custom color applied to the smaller icon
       BitmapDescriptor metroMarkerIcon = await _getBitmapDescriptorFromIcon(
-        MetroIcon.train, 
-        const ui.Color.fromARGB(255, 169, 8, 123) 
-      );
+          MetroIcon.train, const ui.Color.fromARGB(255, 169, 8, 123));
 
       QuerySnapshot snapshot = await _db.collection('MetroLocations').get();
-      
+
       Set<Marker> metroMarkers = snapshot.docs.map((doc) {
         final data = doc.data() as Map<String, dynamic>;
-        
-        final double lat = data['latitude'];
-        final double lng = data['longitude'];
-        final String name = data['name'];
-        final String line = data['line'] ?? "Metro";
-
         return Marker(
           markerId: MarkerId(doc.id),
-          position: LatLng(lat, lng),
-          infoWindow: InfoWindow(
-            title: name,
-            snippet: '$line Line Station',
-          ),
+          position: LatLng(data['latitude'], data['longitude']),
+          infoWindow: InfoWindow(title: data['name'], snippet: '${data['line'] ?? "Metro"} Line Station'),
           icon: metroMarkerIcon,
         );
       }).toSet();
@@ -113,21 +99,21 @@ class _HomePageState extends State<HomePage> {
       if (res.statusCode == 200) {
         final data = json.decode(res.body);
         if (data['status'] == 'OK') {
-          final List results = data['results'];
-          return results.map((p) => {
-            'name': p['name'],
-            'lat': p['geometry']['location']['lat'],
-            'lng': p['geometry']['location']['lng'],
-          }).toList();
+          return (data['results'] as List).map((p) => {
+                'name': p['name'],
+                'lat': p['geometry']['location']['lat'],
+                'lng': p['geometry']['location']['lng'],
+              }).toList();
         }
       }
-    } catch (e) { debugPrint("Error: $e"); }
+    } catch (e) {
+      debugPrint("Error: $e");
+    }
     return [];
   }
 
   Future<void> _processTravelRequest() async {
     if (_sourceLocation == null || _destinationLocation == null) return;
-
     await _db.collection('user_travel_requests').add({
       'source_name': _sourceName,
       'source_lat': _sourceLocation!.latitude,
@@ -138,14 +124,31 @@ class _HomePageState extends State<HomePage> {
       'timestamp': FieldValue.serverTimestamp(),
     });
 
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => TravelOptionsScreen(
+    Navigator.push(context, MaterialPageRoute(builder: (_) => TravelOptionsScreen(
           sourceName: _sourceName,
           destName: _destName,
           sourceLat: _sourceLocation!.latitude,
           sourceLng: _sourceLocation!.longitude,
+          destLat: _destinationLocation!.latitude,
+          destLng: _destinationLocation!.longitude,
+        )));
+  }
+
+  // Helper to handle navigation to NearbyUsersPage with data validation
+  void _navigateToNearbyUsers() {
+    if (_destinationLocation == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Please select a destination first!")),
+      );
+      return;
+    }
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => NearbyUsersPage(
+          destinationId: "dest_${DateTime.now().millisecondsSinceEpoch}",
+          destinationName: _destName,
           destLat: _destinationLocation!.latitude,
           destLng: _destinationLocation!.longitude,
         ),
@@ -153,17 +156,93 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
- @override
+  @override
   Widget build(BuildContext context) {
-    // ✅ Updated pages list to include Metro Sync (Index 2)
+    // UPDATED PAGES LIST TO INCLUDE NearbyUsersPage AT INDEX 3
     final List<Widget> _pages = [
-      _buildMapSearchBody(),           // Index 0
-      const DisruptionCascadeScreen(), // Index 1
-      const MetroBookingScreen(),      // Index 2 (NEW)
-      const RegisterPage(),            // Index 3
+      _buildMapSearchBody(),
+      const DisruptionCascadeScreen(),
+      const MetroBookingScreen(),
+      _destinationLocation == null 
+        ? const Center(child: Text("Please select a destination on the Home tab first"))
+        : NearbyUsersPage(
+            destinationId: "nav_dest",
+            destinationName: _destName,
+            destLat: _destinationLocation!.latitude,
+            destLng: _destinationLocation!.longitude,
+          ),
     ];
 
     return Scaffold(
+      resizeToAvoidBottomInset: false,
+      appBar: AppBar(
+        title: const Text("CommuteIQ", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blueAccent)),
+        backgroundColor: Colors.white,
+        elevation: 1,
+        centerTitle: true,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.account_circle, color: Colors.grey, size: 32),
+            onPressed: () {
+              Navigator.push(context, MaterialPageRoute(builder: (_) => const RegisterPage()));
+            },
+          ),
+          const SizedBox(width: 10),
+        ],
+      ),
+      drawer: Drawer(
+        child: ListView(
+          padding: EdgeInsets.zero,
+          children: [
+            const DrawerHeader(
+              decoration: BoxDecoration(color: Colors.blueAccent),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  CircleAvatar(
+                    backgroundColor: Colors.white,
+                    radius: 30,
+                    child: Icon(Icons.person, color: Colors.blueAccent, size: 35),
+                  ),
+                  SizedBox(height: 10),
+                  Text(
+                    "CommuteIQ User",
+                    style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.home),
+              title: const Text('Home'),
+              onTap: () {
+                setState(() => _selectedIndex = 0);
+                Navigator.pop(context);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.history),
+              title: const Text('Paid Lift'),
+              onTap: () => Navigator.pop(context),
+            ),
+            ListTile(
+              leading: const Icon(Icons.ac_unit_sharp),
+              title: const Text('Group Rides'),
+              onTap: () {
+                Navigator.pop(context); // Close drawer
+                _navigateToNearbyUsers(); // Navigate with data
+              },
+            ),
+            const Divider(),
+            ListTile(
+              leading: const Icon(Icons.logout, color: Colors.red),
+              title: const Text('Logout'),
+              onTap: () => Navigator.pop(context),
+            ),
+          ],
+        ),
+      ),
       body: IndexedStack(
         index: _selectedIndex,
         children: _pages,
@@ -171,67 +250,99 @@ class _HomePageState extends State<HomePage> {
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _selectedIndex,
         onTap: (index) {
-          setState(() {
-            _selectedIndex = index;
-          });
+          // Check if user is tapping Nearby Convoy (Index 3)
+          if (index == 3 && _destinationLocation == null) {
+             ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text("Select a destination on 'Home' to use Nearby Convoy")),
+            );
+          } else {
+            setState(() => _selectedIndex = index);
+          }
         },
         selectedItemColor: Colors.orange[800],
         unselectedItemColor: Colors.grey,
-        type: BottomNavigationBarType.fixed, // Necessary for 4+ items
+        type: BottomNavigationBarType.fixed,
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.home_outlined), activeIcon: Icon(Icons.home), label: 'Home'),
           BottomNavigationBarItem(icon: Icon(Icons.analytics_outlined), activeIcon: Icon(Icons.analytics), label: 'Cascade'),
-          // ✅ New Tab Added
           BottomNavigationBarItem(icon: Icon(Icons.sync_alt), activeIcon: Icon(Icons.sync), label: 'Metro Sync'),
-          BottomNavigationBarItem(icon: Icon(Icons.person_outline), activeIcon: Icon(Icons.person), label: 'Profile'),
+          BottomNavigationBarItem(icon: Icon(Icons.groups_outlined), activeIcon: Icon(Icons.groups), label: 'Nearby Convoy'),
         ],
       ),
     );
   }
 
   Widget _buildMapSearchBody() {
-    return Column(
+    return Stack(
       children: [
-        Expanded(
-          flex: 1, 
+        Positioned.fill(
           child: GoogleMap(
-            initialCameraPosition: const CameraPosition(
-              target: LatLng(18.5204, 73.8567), 
-              zoom: 12
-            ),
+            initialCameraPosition: const CameraPosition(target: LatLng(18.5204, 73.8567), zoom: 12),
             myLocationButtonEnabled: false,
             zoomControlsEnabled: false,
             markers: _markers,
-          )
-        ),
-        Expanded(
-          flex: 1,
-          child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              children: [
-                const Text("Where are you going?", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 20),
-                _buildSearch(_sourceCtrl, "Source", Colors.green),
-                const SizedBox(height: 10),
-                _buildSearch(_destCtrl, "Destination", Colors.red),
-                const Spacer(),
-                SizedBox(
-                  width: double.infinity,
-                  height: 55,
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blueAccent,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))
-                    ),
-                    onPressed: _processTravelRequest, 
-                    child: const Text("PROCEED TO MODES", style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1.1))
-                  ),
-                ),
-              ],
-            ),
+            padding: const EdgeInsets.only(bottom: 120),
           ),
+        ),
+        DraggableScrollableSheet(
+          initialChildSize: 0.35,
+          minChildSize: 0.15,
+          maxChildSize: 0.85,
+          snap: true,
+          builder: (context, scrollController) {
+            return Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(25)),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.1),
+                    blurRadius: 10,
+                    spreadRadius: 5,
+                  )
+                ],
+              ),
+              child: ListView(
+                controller: scrollController,
+                padding: const EdgeInsets.all(20),
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 5,
+                      margin: const EdgeInsets.only(bottom: 20),
+                      decoration: BoxDecoration(
+                        color: Colors.grey[300],
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                  ),
+                  const Text(
+                    "Where are you going?",
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 20),
+                  _buildSearch(_sourceCtrl, "Source", Colors.green),
+                  const SizedBox(height: 10),
+                  _buildSearch(_destCtrl, "Destination", Colors.red),
+                  const SizedBox(height: 30),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 55,
+                    child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.blueAccent,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
+                        onPressed: _processTravelRequest,
+                        child: const Text("PROCEED TO MODES", style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1.1))),
+                  ),
+                  const SizedBox(height: 50),
+                ],
+              ),
+            );
+          },
         ),
       ],
     );
@@ -241,44 +352,36 @@ class _HomePageState extends State<HomePage> {
     return TypeAheadField<Map<String, dynamic>>(
       controller: ctrl,
       builder: (context, controller, focusNode) => TextField(
-        controller: controller, 
-        focusNode: focusNode, 
-        decoration: InputDecoration(
-          labelText: label, 
-          prefixIcon: Icon(Icons.location_on, color: color),
-          filled: true,
-          fillColor: Colors.grey[50],
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide(color: Colors.grey[300]!)
-          ),
-        )
-      ),
+          controller: controller,
+          focusNode: focusNode,
+          decoration: InputDecoration(
+            labelText: label,
+            prefixIcon: Icon(Icons.location_on, color: color),
+            filled: true,
+            fillColor: Colors.grey[50],
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey[300]!)),
+          )),
       suggestionsCallback: _searchPlaces,
       itemBuilder: (context, s) => ListTile(title: Text(s['name'])),
       onSelected: (s) {
         setState(() {
-          if (ctrl == _sourceCtrl) { 
-            _sourceLocation = LatLng(s['lat'], s['lng']); 
-            _sourceName = s['name']; 
-            
+          final loc = LatLng(s['lat'], s['lng']);
+          if (ctrl == _sourceCtrl) {
+            _sourceLocation = loc;
+            _sourceName = s['name'];
             _markers.add(Marker(
-              markerId: const MarkerId('user_source'),
-              position: _sourceLocation!,
-              icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
-              infoWindow: InfoWindow(title: 'Start: $_sourceName'),
-            ));
-          }
-          else { 
-            _destinationLocation = LatLng(s['lat'], s['lng']); 
-            _destName = s['name']; 
-
+                markerId: const MarkerId('user_source'),
+                position: loc,
+                icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
+                infoWindow: InfoWindow(title: 'Start: $_sourceName')));
+          } else {
+            _destinationLocation = loc;
+            _destName = s['name'];
             _markers.add(Marker(
-              markerId: const MarkerId('user_dest'),
-              position: _destinationLocation!,
-              icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
-              infoWindow: InfoWindow(title: 'End: $_destName'),
-            ));
+                markerId: const MarkerId('user_dest'),
+                position: loc,
+                icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
+                infoWindow: InfoWindow(title: 'End: $_destName')));
           }
           ctrl.text = s['name'];
         });
